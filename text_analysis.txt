@@ -1,0 +1,382 @@
+
+rm(list=ls())
+dev.off()
+#set working directory
+getwd() 
+setwd("C:/Users/sharon/Documents/MLAA Assignment 3 (1)") 
+getwd() 
+
+###Load libraries
+library(tm) 
+library(SnowballC)
+
+#Load corpus... 
+docs <- VCorpus(DirSource("./docs"))
+
+#Check details
+#of docs
+print(docs)
+class(docs)
+
+#Volatile corpus consisting of 30 documents
+#examine contents
+docs[1]
+class(docs[1])
+#Volatile corpus consisting of 1 documents
+#To access the actual contents we need to use the [[]] notation
+class(docs[[1]])
+docs[[1]]$meta
+docs[[1]]$content
+
+#Preprocessing
+
+#Remove punctuation - replace punctuation marks with " "
+docs <- tm_map(docs, removePunctuation)
+#Transform to lower case
+docs <- tm_map(docs,content_transformer(tolower))
+#Strip digits
+docs <- tm_map(docs, removeNumbers)
+#Remove stopwords from standard stopword list 
+docs <- tm_map(docs, removeWords,stopwords("english"))
+#Strip whitespace (cosmetic?)
+docs <- tm_map(docs, stripWhitespace)
+#inspect output
+writeLines(as.character(docs[[30]]))
+
+#Stem document
+##########################
+docs <- tm_map(docs,stemDocument)
+
+#inspect
+writeLines(as.character(docs[[30]]))
+#end of preprocessing
+
+#Create document-term matrix
+dtm <- DocumentTermMatrix(docs)
+#summary
+dtm
+#inspect segment of document term matrix
+inspect(dtm[1:10,1000:1006])
+#collapse matrix by summing over columns - this gets total counts (over all docs) for each term
+freq <- colSums(as.matrix(dtm))
+#length should be total number of terms
+length(freq)
+#create sort order (asc)
+ord <- order(freq,decreasing=TRUE)
+#inspect most frequently occurring terms
+freq[head(ord)]
+#write to disk and inspect file
+write.csv(file="freq.csv",freq[ord])
+#inspect least frequently occurring terms
+freq[tail(ord)]
+#list most frequent terms. Lower bound specified as second argument
+findFreqTerms(dtm,lowfreq=80)
+#correlations
+findAssocs(dtm,"project",0.95)
+findAssocs(dtm,"risk",0.75)
+findAssocs(dtm,"manag",0.9)
+#histogram
+library(ggplot2)
+wf=data.frame(term=names(freq),occurrences=freq)
+p <- ggplot(subset(wf, occurrences>200), aes(term, occurrences))
+p <- p + geom_bar(stat="identity")
+p <- p + theme(axis.text.x=element_text(angle=45, hjust=1))
+p
+#order by frequency
+p <- ggplot(subset(wf, occurrences>200), aes(reorder(term,occurrences), occurrences))
+p <- p + geom_bar(stat="identity")
+p <- p + theme(axis.text.x=element_text(angle=45, hjust=1))
+p
+#wordcloud
+library(wordcloud)
+#setting the same seed each time ensures consistent look across clouds
+set.seed(42)
+#limit words by specifying min frequency
+wordcloud(names(freq),freq, max.words=100)
+#...add color
+wordcloud(names(freq),freq,max.words=100,colors=brewer.pal(6,"Dark2"))
+#play with different values of max.words
+#try specifying min.freq instead of max.words
+
+##n-grams
+#######################
+
+##create bigram tokenizer
+#uses ngrams function from NLP package
+
+##ngrams
+#to see what ngrams does, try running ngrams(words(docs[[1]]$content),2), which
+#returns bigrams for the first document in the corpus
+ngrams(words(docs[[1]]$content),2)
+##unlist creates a vector from the atomic components of a list
+
+BigramTokenizer <-  function(x) unlist(lapply(ngrams(words(x), 2), paste, collapse = " "), use.names = FALSE)
+#create DTM
+dtmbi <- DocumentTermMatrix(docs, control = list(tokenize = BigramTokenizer))
+freqbi <- colSums(as.matrix(dtmbi))
+#length should be total number of terms
+length(freqbi)
+#create sort order (asc)
+ordbi <- order(freqbi,decreasing=TRUE)
+#inspect most frequently occurring terms
+freqbi[head(ordbi)]
+##plot bigram
+wordcloud(names(freqbi),freqbi, max.words=100)
+#order bigram by frequency
+wf_bi=data.frame(term1=names(freqbi),occurrences=freqbi)
+p_bi <- ggplot(subset(wf_bi, occurrences>100), aes(reorder(term1,occurrences), occurrences))
+p_bi <- p + geom_bar(stat="identity")
+p_bi <- p + theme(axis.text.x=element_text(angle=45, hjust=1))
+p_bi
+
+##Trigram;
+#returns trigrams for the first document in the corpus
+ngrams(words(docs[[1]]$content)3)
+##unlist creates a vector from the atomic components of a list
+
+TrigramTokenizer <-  function(x) unlist(lapply(ngrams(words(x), 3), paste, collapse = " "), use.names = FALSE)
+#create DTM
+dtmbi_tri <- DocumentTermMatrix(docs, control = list(tokenize = TrigramTokenizer))
+freqtri <- colSums(as.matrix(dtmbi_tri))
+#length should be total number of terms
+length(freqtri)
+#create sort order (asc)
+ordtri <- order(freqtri,decreasing=TRUE)
+#inspect most frequently occurring terms
+freqtri[head(ordtri)]
+##plot trigram
+wordcloud(names(freqtri),freqtri, max.words=100)
+#order trigram by frequency
+wf_tri=data.frame(term3=names(freqtri),occurrences3=freqtri)
+p_tri <- ggplot(subset(wf_tri, occurrences>100), aes(reorder(term3,occurrences3), occurrences3))
+p_tri <- p + geom_bar(stat="identity")
+p_tri <- p + theme(axis.text.x=element_text(angle=45, hjust=1))
+p_tri
+
+
+####Using the second part;
+#Uses the same corpus as in the previous exercise
+#assumes tm, ggplot and wordcloud libraries are loaded
+
+#remove custom stopwords
+#NOTE: change stopwords appopriately if you do not stem
+myStopwords <- c("can", "say","one","way","use",
+                 "also","howev","tell","will",
+                 "much","need","take","tend","even",
+                 "like","particular","rather","said",
+                 "get","well","make","ask","come","end",
+                 "first","two","help","often","may",
+                 "might","see","someth","thing","point",
+                 "post","look","right","now","think","'ve ",
+                 "'re ","anoth","put","set","new","good",
+                 "want","sure","kind","larg","yes,","day","etc",
+                 "quit","sinc","attempt","lack","seen","awar",
+                 "littl","ever","moreov","though","found","abl",
+                 "enough","far","earli","away","achiev","draw",
+                 "last","never","brief","bit","entir","brief",
+                 "great","lot","man","say","well")
+###Already used STEM disregard fo now;
+
+docs <- tm_map(docs, removeWords, myStopwords)
+#wordlengths: remove very frequent and very rare words
+#bounds: include only words that occur in at least / at most n_lower / n_upper docs
+dtmr <-DocumentTermMatrix(docs, control=list(wordLengths=c(4, 20),
+                                             bounds = list(global = c(3,45))))
+freqr <- colSums(as.matrix(dtmr))
+#length should be total number of terms
+length(freqr)
+
+#create sort order (asc)
+ordr <- order(freqr,decreasing=TRUE)
+#inspect most frequently occurring terms
+freqr[head(ordr)]
+#write to disk and inspect file
+write.csv(file="freqr.csv",freqr[ordr])
+#inspect least frequently occurring terms
+freqr[tail(ordr)]
+#list most frequent terms. Lower bound specified as second argument
+findFreqTerms(dtmr,lowfreq=60)
+#correlations
+findAssocs(dtmr,"project",0.9)
+findAssocs(dtmr,"risk",0.7)
+findAssocs(dtmr,"figure",0.8)
+#histogram
+wf=data.frame(term=names(freqr),occurrences=freqr)
+#library(ggplot2)
+p <- ggplot(subset(wf, freqr>200), aes(reorder(term,occurrences), occurrences))
+p <- p + geom_bar(stat="identity")
+p <- p + theme(axis.text.x=element_text(angle=45, hjust=1))
+p
+#wordcloud
+#library(wordcloud)
+#setting the same seed each time ensures consistent look across clouds
+set.seed(42)
+#limit words by specifying min frequency
+wordcloud(names(freqr),freqr, min.freq=70)
+#...add color
+wordcloud(names(freqr),freqr,min.freq=70,colors=brewer.pal(6,"Dark2"))
+
+
+#######Part 3
+#Part 3 tfidf
+#same corpus as in previous exercise
+##assumes tm, ggplot and wordcloud libraries are loaded
+
+dtm_tfidf <- DocumentTermMatrix(docs,control = list(weighting = weightTfIdf))
+#note that the weighting is normalised by default (that is, the term frequencies in a
+#document are normalised by the number of terms in the document)
+#summary
+dtm_tfidf
+#inspect segment of document term matrix
+inspect(dtm_tfidf[1:10,1000:1006])
+#collapse matrix by summing over columns - this gets total weights (over all docs) for each term
+wt_tot_tfidf <- colSums(as.matrix(dtm_tfidf))
+#length should be total number of terms
+length(wt_tot_tfidf )
+#create sort order (asc)
+ord_tfidf <- order(wt_tot_tfidf,decreasing=TRUE)
+#inspect most frequently occurring terms
+wt_tot_tfidf[head(ord_tfidf)]
+#write to disk and inspect file
+write.csv(file="wt_tot_tfidf.csv",wt_tot_tfidf[ord_tfidf])
+#inspect least weighted terms
+wt_tot_tfidf[tail(ord_tfidf)]
+
+#correlations - compare to dtm generated by  tf and tf/truncated weighting
+#"project" at correlation level of 0.6
+findAssocs(dtm_tfidf,"algorithm",0.5)
+findAssocs(dtm_tfidf,"function",0.8)
+#notice the difference!
+
+#histogram
+wf=data.frame(term=names(wt_tot_tfidf),weights=wt_tot_tfidf)
+#library(ggplot2)
+p <- ggplot(subset(wf, wt_tot_tfidf>.1), aes(reorder(term,weights), weights))
+p <- p + geom_bar(stat="identity")
+p <- p + theme(axis.text.x=element_text(angle=45, hjust=1))
+p
+#wordcloud
+#library(wordcloud)
+#setting the same seed each time ensures consistent look across clouds
+set.seed(42)
+#limit words by specifying min total wt
+wordcloud(names(wt_tot_tfidf),wt_tot_tfidf, max.words=100)
+#...add color
+wordcloud(names(wt_tot_tfidf),wt_tot_tfidf,max.words=100,colors=brewer.pal(6,"Dark2"))
+#play with different values of max.words
+#try specifying min.freq instead of max.words
+
+
+########Hierarchichal clustering
+## start clustering specific code
+#convert dtm to matrix (what format is the dtm stored in?)
+m<-as.matrix(dtm)
+#write as csv file
+write.csv(m,file="dtmAsMatrix.csv")
+#shorten rownames for display purposes
+rownames(m) <- paste(substring(rownames(m),1,3),rep("..",nrow(m)),
+                     substring(rownames(m),
+                               nchar(rownames(m))-12,nchar(rownames(m))-4))
+#compute distance between document vectors
+d <- dist(m)
+#run hierarchical clustering using Ward's method (explore other options later)
+groups <- hclust(d,method="ward.D")
+#plot, use hang to ensure that labels fall below tree
+plot(groups, hang=-1)
+#cut into 2 subtrees. Try 3,4,5,6 cuts; comment on your results
+rect.hclust(groups,2)
+hclusters <- cutree(groups,2)
+write.csv(hclusters,"hclusters.csv")
+
+dev.off()
+#try another distance measure
+cosineSim <- function(x){
+  as.dist(x%*%t(x)/(sqrt(rowSums(x^2) %*% t(rowSums(x^2)))))
+}
+cs <- cosineSim(m)
+cd <- 1-cs
+
+#run hierarchical clustering using cosine distance
+groups <- hclust(cd,method="ward.D")
+#plot, use hang to ensure that labels fall below tree
+plot(groups, hang=-1)
+#cut into 2 subtrees.
+rect.hclust(groups,2)
+hclusters_cosine <- cutree(groups,2)
+write.csv(hclusters_cosine,"hclusters_cosine.csv")
+
+#compare dendrograms obtained using the two distance measures.
+
+
+####K-means cluttering'
+
+#write as csv file
+write.csv(m,file="dtmAsMatrix.csv")
+#shorten rownames for display purposes
+rownames(m) <- paste(substring(rownames(m),1,7),rep("..",nrow(m)),
+                     substring(rownames(m),
+                               nchar(rownames(m))-7,nchar(rownames(m))-4))
+#compute distance between document vectors
+d <- dist(m)
+
+#kmeans clustering
+#kmeans - run with nstart=100 and k=2,3,5 to compare results with hclust
+kfit <- kmeans(d, 2, nstart=100)
+#plot - need library cluster
+library(cluster)
+clusplot(as.matrix(d), kfit$cluster, color=T, shade=T, labels=2, lines=0)
+#print contents of kfit
+print(kfit)
+#print cluster sizes
+kfit$size
+#print clusters (members)
+kfit$cluster
+#write clusters to csv file
+write.csv(kfit$cluster,file="KMClustGroups2.csv")
+#sum of squared distance between cluster centers 
+kfit$betweenss
+#sum of squared distance within a cluster (this are the quantities that the algorithm
+#attempts to minimise)
+kfit$withinss
+#kmeans - how to determine optimal number of clusters?
+#One approach: look for "elbow" in plot of summed intra-cluster distances (withinss) as fn of k
+wss <- 2:(length(docs)-1)
+for (i in 2:(length(docs)-1)) wss[i] <- sum(kmeans(d,centers=i,nstart=25)$withinss)
+plot(2:(length(docs)-1), wss[2:(length(docs)-1)], type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares") 
+
+#rerun using cosine distance
+cosineSim <- function(x){
+  as.dist(x%*%t(x)/(sqrt(rowSums(x^2) %*% t(rowSums(x^2)))))
+}
+cs <- cosineSim(m)
+cd <- 1-cs
+
+kfit <- kmeans(cd, 2, nstart=100)
+
+clusplot(as.matrix(cd), kfit$cluster, color=T, shade=T, labels=2, lines=0)
+#print contents of kfit
+print(kfit)
+#print cluster sizes
+kfit$size
+#print clusters (members)
+kfit$cluster
+#write clusters to csv file
+write.csv(kfit$cluster,file="KMClustGroups2_cosine.csv")
+#sum of squared distance between cluster centers 
+kfit$betweenss
+#sum of squared distance within a cluster (this are the quantities that the algorithm
+#attempts to minimise)
+kfit$withinss
+#kmeans - how to determine optimal number of clusters?
+#One approach: look for "elbow" in plot of summed intra-cluster distances (withinss) as fn of k
+wss <- 2:(length(docs)-1)
+for (i in 2:(length(docs)-1)) wss[i] <- sum(kmeans(cd,centers=i,nstart=25)$withinss)
+plot(2:(length(docs)-1), wss[2:(length(docs)-1)], type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares") 
+
+
+
+
+
+

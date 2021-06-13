@@ -1,0 +1,93 @@
+rm(list=ls())
+#load tm library
+library(tm)
+#load files into corpus
+docs <- VCorpus(DirSource("./docs"))
+print(docs)
+#inspect a particular document
+writeLines(as.character(docs[[30]]))
+#Remove punctuation - replace punctuation marks with " "
+docs <- tm_map(docs, removePunctuation)
+#Transform to lower case
+docs <- tm_map(docs,content_transformer(tolower))
+#Strip digits
+docs <- tm_map(docs, removeNumbers)
+#Remove stopwords from standard stopword list 
+docs <- tm_map(docs, removeWords, stopwords("english"))
+#Strip whitespace (cosmetic?)
+docs <- tm_map(docs, stripWhitespace)
+#inspect output
+writeLines(as.character(docs[[30]]))
+#Stem document
+docs <- tm_map(docs,stemDocument)
+#inspect
+writeLines(as.character(docs[[30]]))
+#Create document-term matrix
+dtm <- DocumentTermMatrix(docs)
+dtm
+
+####
+
+#Topic models
+library(topicmodels)
+
+#Run LDA using Gibbs Sampling
+burnin <- 1000
+# and perform 2000 iterations (after burn-in)...
+iter <- 2000
+#..taking every 500th one for further use. This "thinning" is done to ensure that
+# samples are not correlated.
+thin <- 500
+#We'll use 5 different, randomly chosen starting points
+nstart <- 5
+#using random integers as seed. Feel free to change these
+seed <- list(2003,5,63,100001,765)
+#...and take the best run (the one with the highest probability) as the result
+best <- TRUE
+
+#Number of topics (6)
+k <- 6
+
+ldaOut <- LDA(dtm,k, method="Gibbs", control=
+                list(nstart=nstart, seed = seed, best=best, burnin = burnin, iter = iter, thin=thin))
+topics(ldaOut)
+ldaOut.topics <-as.matrix(topics(ldaOut))
+
+###Number of topics (20)
+#Number of topics (6)
+k <- 20
+
+ldaOut <- LDA(dtm,k, method="Gibbs", control=
+                list(nstart=nstart, seed = seed, best=best, burnin = burnin, iter = iter, thin=thin))
+topics(ldaOut)
+ldaOut.topics <-as.matrix(topics(ldaOut))
+write.csv(ldaOut.topics,file=paste("LDAGibbs",k,"DocsToTopics.csv"))
+terms(ldaOut,12)
+ldaOut.terms <- as.matrix(terms(ldaOut,12))
+write.csv(ldaOut.terms,file=paste("LDAGibbs",k,"TopicsToTerms.csv"))
+
+###
+
+
+#Find probabilities associated with each topic assignment
+topicProbabilities <- as.data.frame(ldaOut@gamma) 
+write.csv(topicProbabilities,file=paste("LDAGibbs",k,"TopicProbabilities.csv"))
+
+
+# To get posterior distributions
+tmResult <- posterior(ldaOut)
+
+# visualize the terms as wordcloud
+top5termsPerTopic <- terms(ldaOut, 5)
+topicNames <- apply(top5termsPerTopic, 2, paste, collapse=" ")
+# visualize topics as word cloud
+topicToViz <- 18 # change for your own topic of interest
+topicToViz <- grep('risk', topicNames)[1] # Or select a topic by a term contained in its name
+# select to 40 most probable terms from the topic by sorting the term-topic-probability vector in decreasing order
+top40terms <- sort(tmResult$terms[topicToViz,], decreasing=TRUE)[1:40]
+words <- names(top40terms)
+# extract the probabilites of each of the 40 terms
+probabilities <- sort(tmResult$terms[topicToViz,], decreasing=TRUE)[1:40]
+# visualize the terms as wordcloud
+mycolors <- brewer.pal(8, "Dark2")
+wordcloud(words, probabilities, random.order = FALSE, color = mycolors)

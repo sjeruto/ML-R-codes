@@ -1,0 +1,85 @@
+#####Step 1: Load the Necessary Packages
+# Load libraries
+install.packages("doParallel")
+install.packages("randomForest")
+install.packages("mlbench")
+library(mlbench)
+library(randomForest)
+library(doParallel)
+library(foreach)
+library(caret)
+
+##Using the Repurchase_training_DF dataframe;
+#check structure of df;
+str(Repurchase_training_DF)
+
+##Make dependent variable a factor;
+Repurchase_training_DF$Target = as.factor(Repurchase_training_DF$Target)
+
+###Transform all variables into factors;
+str(Repurchase_training_DF)
+
+##Remove null in the data;
+RF_df <- Repurchase_training_DF[!Repurchase_training_DF$age_band == "NULL", ] 
+RF_df <- Repurchase_training_DF[!Repurchase_training_DF$gender == "NULL", ] 
+
+require(caTools)
+install.packages("caTools")
+library(caTools)
+#Split data into train and test;
+sample = sample.split(RF_df$Target, SplitRatio = .75)
+train = subset(RF_df, sample == TRUE)
+test  = subset(RF_df, sample == FALSE)
+dim(train)
+dim(test)
+
+
+##Step 2: run the model;
+set.seed(555)
+rf <-randomForest(Target~.,data=RF_df, ntree=500) 
+print(rf)
+##RF2
+rf_2 <-randomForest(Target~.,data=train, ntree=500) 
+print(rf_2)
+
+##adding memory
+memory.limit()
+memory.limit(24000)
+
+# Output to be present as PNG file 
+png(file = "randomForestClassification.png")
+
+# Plot the error vs The number of trees graph
+plot(rf_2)
+# Saving the file
+dev.off()
+
+##Step 3 : Find the optimal mtry value;
+#Select mtry value with minimum out of bag(OOB) error.
+library(caret)
+mtry <- tuneRF(x=train[ ,c(3:17)], y=train[ ,c(2)], ntreeTry=500, stepFactor = 1.5, 
+                        improve = 0.01, trace=TRUE, plot = TRUE,doBest = TRUE, nodesize = 30, 
+                       importance=TRUE) 
+
+best.m <- mtry[mtry[, 2] == min(mtry[, 2]), 1]
+print(mtry)
+print(best.m)
+
+
+##Build model again using best mtry value.
+set.seed(555)
+rf <-randomForest(Target~.,data=RF_df, mtry=best.m, importance=TRUE,ntree=500)
+print(rf)
+
+#Evaluate variable importance
+importance(rf)
+varImpPlot(rf)
+
+## predict whether the people in our testing set will purchase a vehicle.
+pred = predict(RF_df, newdata=test[-2])
+
+##Confusion matrix of the predicted model
+cm = table(test[,2], pred)
+
+
+
