@@ -1,0 +1,326 @@
+#### Upload necessary libraries
+#####Load the Necessary Packages
+# Load libraries
+install.packages("doParallel")
+install.packages("randomForest")
+install.packages("mlbench")
+install.packages("ROCR")
+install.packages("caTools")
+install.packages("factoextra")
+install.packages("doParallel")
+install.packages("mlbench")
+install.packages("ROCR")
+install.packages("caTools")
+library(caTools)
+library(ROCR)
+library(mlbench)
+library(randomForest)
+library(doParallel)
+library(foreach)
+library(caret)
+library("factoextra")
+library(caTools)
+library(ROCR)
+library(dplyr)
+
+
+##############                          QUESTION ONE;
+
+##Step 1: Upload data, check for missimg values and EDA;
+## Uploading data set;
+repurchase_validation_DF<-read.csv("C:/Users/sharon/Desktop/MLAA/repurchase_validation.csv")
+Repurchase_training_DF<-read.csv("C:/Users/sharon/Desktop/MLAA/repurchase_training.csv")
+
+## To check for the structure of the data;
+str(Repurchase_training_DF)
+
+##Convert character variables into factor;(##NB; Since its classification, variables need to be factor type)
+names <- c(3,4,5,6)
+Repurchase_training_DF[,names] <- lapply(Repurchase_training_DF[,names] , factor)
+glimpse(Repurchase_training_DF)
+
+##View as a tibble;
+##Upload libraries
+install.packages('topicmodels')
+library(topicmodels)
+library(tm)
+library(MASS)
+library(dplyr)
+RT_df <- as_tibble(Repurchase_training_DF)
+
+### summary of dataframe;
+summary(RT_df)
+
+##Removing NULL values in the data frame;
+RT_df <- RT_df[!RT_df$age_band == "NULL", ] 
+RT_df <- RT_df[!RT_df$gender == "NULL", ] 
+RT_df
+
+##summarise again the new data without NULL values;
+summary(RT_df)
+
+
+##Displays missing values, more quantile information and an inline histogram for each variable!
+RT_df %>%
+  skimr::skim()
+
+###Generate a report
+install.packages("DataExplorer")
+library(DataExplorer)
+DataExplorer::create_report(RT_df)
+
+
+######################           QUESTION TWO
+
+####Step 2: Building a lda
+
+##set.seed
+set.seed(555)
+
+RT_df_pca <- prcomp(RT_df[c(3:17)], center = TRUE, scale = TRUE)
+summary(RT_df_pca)
+
+###Using the the whole data for PCA;
+RT_df
+
+RT_df_pca <- prcomp(RT_df[c(3:17)], center = TRUE, scale = TRUE)
+summary(RT_df_pca)
+
+##Plotting the screeplot
+screeplot(RT_df_pca, type = "l", npcs = 15, main = "Screeplot of the first 11 PCs")
+abline(h = 1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"),
+       col=c("red"), lty=5, cex=0.6)
+
+
+cumpro <- cumsum(RT_df_pca$sdev^2 / sum(RT_df_pca$sdev^2))
+plot(cumpro[0:15], xlab = "PC #", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+abline(v = 3, col="blue", lty=5)
+abline(h = 0.88759, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC3"),
+       col=c("blue"), lty=5, cex=0.6)
+
+plot(RT_df_pca$x[,1],RT_df_pca$x[,2], xlab="PC1 (44.3%)", ylab = "PC2 (19%)", main = "PC1 / PC2 - plot")
+
+##plot a 2dimensional graph
+fviz_pca_ind(RT_df_pca, geom.ind = "point", pointshape = 21, 
+             pointsize = 2, 
+             fill.ind = as.factor(RT_df$Target),
+             col.ind = "black", 
+             palette = "jco", 
+             addEllipses = TRUE,
+             label = "var",
+             col.var = "black",
+             repel = TRUE,
+             legend.title = "Target") +
+  ggtitle("2D PCA-plot from 11 feature dataset") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+RT_df
+
+
+##using LDA;
+#Definig the data;
+#remove ID as a variable and define data as matrix (not DF)while retaining ID in the column names;
+RT_df.data <- as.matrix(RT_df[, c(3:17)])
+row.names(RT_df.data) <- RT_df$ID
+RT_df_raw <- cbind(RT_df.data, as.numeric(RT_df$Target)-1)
+colnames(RT_df_raw)[16] <- "Target"
+
+##Analysis;
+
+###Create a new dataset using PCA;
+Rt_pcst <- RT_df_pca$x[,1:3]
+Rt_pcst <- cbind(Rt_pcst, as.numeric(RT_df$Target))
+colnames(Rt_pcst)[4] <-"Target"
+Rt_pcst
+
+####Define train-test-split;75/25 split
+sample_size <- floor(0.75 * nrow(Rt_pcst))
+train_raw <- sample(nrow(Rt_pcst), size = sample_size)
+train_raw1 <- as.data.frame(Rt_pcst[train_raw, ])
+test_raw1 <- as.data.frame(Rt_pcst[-train_raw, ])
+train_raw
+
+##model
+RT_df_lda <-lda(Target~ PC1 + PC2 + PC3, data=train_raw1)
+RT_df_lda
+
+##predict
+RT_df_lda_predict <- predict(RT_df_lda, newdata=test_raw1)
+RT_df_lda_predict
+
+RT_df_raw.lda.predict$class
+
+##Evaluation
+##CONSTRUCTING ROC AUC PLOT
+#Get posteriors as a dataframe
+RT_df_raw.lda.predict.posteriors <- as.data.frame(RT_df_raw.lda.predict$posterior)
+RT_df_raw.lda.predict.posteriors
+
+#Evaluate the model
+pred <- prediction(RT_df_raw.lda.predict.posteriors[,2],test_raw1$Target)
+y_test <- test_raw1[,4]
+pred <- prediction(RT_df_raw.lda.predict.posteriors[,2],y_test)
+length(fitted(RT_df_lda))==length(test_raw1$Target)
+roc.perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+auc.train <- performance(pred, measure="auc")
+auc.train <- auc.train@y.values
+
+#plot
+plot(roc.perf)
+abline(a=0, b=1)
+text(x= .25, y= .65, 
+     paste ("AUC= ",
+            round(auc.train[[1]],3), sep=""))
+
+
+
+#########################################	QUESTION THREE
+##Using the Repurchase_training_DF dataframe;
+#check structure of df;
+str(Repurchase_training_DF)
+
+##Make dependent variable a factor;
+Repurchase_training_DF$Target = as.factor(Repurchase_training_DF$Target)
+
+###Transform all variables into factors;
+str(Repurchase_training_DF)
+
+##Remove null in the data;
+Repurchase_training_DF <- Repurchase_training_DF[!Repurchase_training_DF$age_band == "NULL",] 
+Repurchase_training_DF<- Repurchase_training_DF[!Repurchase_training_DF$gender == "NULL", ] 
+print(Repurchase_training_DF)
+
+
+#Split data into train and test;
+sample = sample.split(Repurchase_training_DF$Target, SplitRatio = .75)
+train_rf = subset(Repurchase_training_DF, sample == TRUE)
+test_rf  = subset(Repurchase_training_DF, sample == FALSE)
+dim(train_rf)
+dim(test_rf)
+
+##Step 2: run the model;
+set.seed(555)
+##RF2
+rf_2 <-randomForest(Target~.,data=train_rf, ntree=500) 
+print(rf_2)
+
+
+###Plot the error vs The number of trees graph
+# Output to be present as PNG file 
+png(file = "randomForestClassification.png")
+# Plot the error vs The number of trees graph
+plot(rf_2)
+# Saving the file
+dev.off()
+
+##Step 3 : Find the optimal mtry value;
+#Select mtry value with minimum out of bag(OOB) error.
+print(mtry)
+
+set.seed(555)
+bestmtry <- tuneRF(x=train_rf[ ,c(3:17)], y=train_rf[ ,c(2)], stepFactor=1.5, improve=1e-5, ntree=500)
+print(bestmtry)
+
+##Build model again using best mtry value.
+set.seed(555)
+rf <-randomForest(Target~.,data=RF_df, mtry=bestmtry, importance=TRUE,ntree=500)
+print(rf)
+
+#Evaluate variable importance
+importance(rf)
+varImpPlot(rf)
+
+
+##Prediction and Calculate Performance Metrics
+pred1=predict(rf,type = "prob")
+perf = prediction(pred1[,2], RF_df$Target)
+
+# 1. Area under curve
+auc = performance(perf, "auc")
+auc
+# 2. True Positive and Negative Rate
+pred3 = performance(perf, "tpr","fpr")
+
+# 3. Plot the ROC curve
+plot(pred3,main="ROC Curve for Random Forest",col=2,lwd=2)
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+
+
+## predict whether the people in our testing set will purchase a vehicle.
+pred = predict(RF_df, newdata=test[-2])
+
+##Confusion matrix of the predicted model
+cm = table(test[,2], pred)
+
+
+######Partial dependancy plots;
+install.packages("pdp")
+install.packages("vip")
+library(pdp)
+library(vip) 
+
+# Variable importance plot (compare to randomForest::varImpPlot(boston_rf))
+vip(rf, bar = FALSE, horizontal = FALSE, size = 1.5)  # Figure 1
+
+##Single predictor PDPs
+partialPlot(rf, pred.data = Repurchase_training_DF, x.var = "annualised_mileage")  # Figure 2
+partialPlot(rf, pred.data = Repurchase_training_DF, x.var = "mth_since_last_serv") 
+partialPlot(rf, pred.data = Repurchase_training_DF, x.var = "age_of_vehicle_years") 
+partialPlot(rf, pred.data = Repurchase_training_DF, x.var = "ID") 
+partialPlot(rf, pred.data = Repurchase_training_DF, x.var = "total_paid_services") 
+
+
+########QUESTION FOUR
+
+
+##Step 1
+##using the repurchasing_validation dataset;
+repurchase_validation_DF_13820434<-read.csv("C:/Users/sharon/Desktop/MLAA/repurchase_validation.csv")
+repurchase_validation_DF_13820434
+
+## To check for the structure of the data;
+str(repurchase_validation_DF)
+
+##Convert character variables into factor
+names <- c(2,3,4,5)
+repurchase_validation_DF_13820434[,names] <- lapply(repurchase_validation_DF_13820434[,names] , factor)
+glimpse(repurchase_validation_DF_13820434)
+
+##Removing NULL values in the data frame
+repurchase_validation_DF_13820434 <- repurchase_validation_DF_13820434[!repurchase_validation_DF_13820434$age_band == "NULL", ] 
+repurchase_validation_DF_13820434 <- repurchase_validation_DF_13820434[!repurchase_validation_DF_13820434$gender == "NULL", ] 
+repurchase_validation_DF
+
+##summarise again the new data without NULL values;
+summary(repurchase_validation_DF)
+
+##Step 2; use the variables in ‘repurchase_validation.csv’ to 
+#output both probabilities and class predictions;
+
+#use RF model to make predictions on test data
+predicted_1 <- predict(rf, repurchase_validation_DF_13820434)
+predicted <- predict(rf, repurchase_validation_DF_13820434)
+pred = predict(rf, newdata=repurchase_validation_DF_13820434[-2])
+
+levels(repurchase_validation_DF_13820434$Target) <- levels(train_rf$Target)
+
+names(predicted_1)
+
+#view predicted class for first six observations in test set
+head(predicted_1$class)
+
+#view posterior probabilities for first six observations in test set
+head(predicted$posterior)
+tar
+repurchase_validation_DF_13820434$target_probability <-
+  
+repurchase_validation_DF_13820434$target_class <- levels(train_rf$Target)
+  
+
+
+
+
+

@@ -1,0 +1,18 @@
+## Uploading data set;
+Trans_DF<-read.csv("C:/Users/sharon/Desktop/MLAA/transactions.csv")
+head(Trans_DF)
+
+## To check for missing values in the data;
+sum(!complete.cases(Trans_DF))
+
+## To check for the structure of the data;
+str(Trans_DF)
+
+
+##Changing the date format
+Trans_DF$Month_Yr <- format(as.Date(Trans_DF$date,format = "%m/%d/%Y"), "%Y-%m")
+
+##To delete a column
+Trans_DF <- subset( Trans_DF, select = -Month_Yr )
+
+##
