@@ -1,0 +1,4 @@
+### check limit;
+memory.limit()
+Increase memory
+memory.limit(24000)

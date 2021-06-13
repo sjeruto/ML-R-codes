@@ -1,0 +1,47 @@
+##Upload data set;
+AT1_credit_train <- read.csv("C:/Users/sharon/Downloads/AT2_credit_train.csv")
+AT1_credit_train
+
+names(AT1_credit_train)
+dim(AT1_credit_train)
+summary(AT1_credit_train)
+cor(AT1_credit_train [,-25])
+
+## To check for the structure of the data;
+str(AT1_credit_train)
+
+##Convert character variables into factor
+names <- c(3,25)
+AT1_credit_train[,names] <- lapply(AT1_credit_train[,names] , factor)
+AT1_credit_train
+
+### summary of df
+summary(AT1_credit_train)
+
+##Displays missing values, more quantile information and an inline histogram for each variable!
+AT1_credit_train %>%
+  skimr::skim()
+
+###Generate a report
+DataExplorer::create_report(AT1_credit_train)
+
+##Building a linear discriminant regression;
+##set.seed
+set.seed(45)
+
+###Using the the whole data for PCA
+###Changing factor to numeric;
+AT1_credit_train$SEX <- as.numeric(as.factor(AT1_credit_train$SEX))
+
+
+##Deciding the columns for PCA:
+AT1_credit_train_pca <- prcomp(AT1_credit_train[c(2:24)], center = TRUE, scale = TRUE)
+summary(AT1_credit_train_pca)
+
+##Plotting the screeplot
+screeplot(AT1_credit_train_pca, type = "l", npcs = 25, main = "Screeplot of the first 25 PCs")
+abline(h = 1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"),
+       col=c("red"), lty=5, cex=0.6)
+
+

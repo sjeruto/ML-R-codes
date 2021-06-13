@@ -1,0 +1,114 @@
+For LDR;
+install.packages("stargazer")
+library(stargazer)
+
+
+train_DF<-read.csv("C:/Users/sharon/Desktop/MLAA/repurchase_training.csv")
+names(train_DF)
+dim(train_DF)
+summary(train_DF)
+cor(train_DF)
+
+cor(train_DF [,-9])
+attach(train_DF)
+plot(Target)
+
+## To check for the structure of the data;
+str(train_DF)
+
+##Convert character variables into factor
+names <- c(3,4,5,6)
+train_DF[,names] <- lapply(train_DF[,names] , factor)
+glimpse(train_DF)
+
+##View as a tibble
+d_2 <- as_tibble(train_DF)
+
+### summary of df
+summary(d_2)
+
+##Removing NULL values in the data frame
+d_2 <- d_2[!d_2$age_band == "NULL", ] 
+d_2 <- d_2[!d_2$gender == "NULL", ] 
+
+##summarise again the new data without NULL values;
+summary(d_2)
+
+###Convert categorical data into numerical;
+dummy <- dummyVars(" ~ .", data = d_2)
+data_new <- data.frame(predict(dummy, newdata = d_2))
+
+### Deleting columns;
+data_new <- subset( data_new, select = -age_band.NULL)
+data_new <- subset( data_new, select = -gender.NULL)
+
+#scale each predictor variable (i.e. first 4 columns)
+data_new[3:34] <- scale(data_new[3:34])
+
+#find mean of each predictor variable
+apply(data_new[3:34], 2, mean)
+
+#find standard deviation of each predictor variable
+apply(data_new[3:34], 2, sd) 
+
+##set.seed
+set.seed(555)
+
+##Split data into train and test;
+Validation_index_2 <- createDataPartition(data_new$Target, p = .70, list = FALSE)
+train_set_2 <-data_new[Validation_index, ]
+test_set_2 <- data_new[-Validation_index, ]
+
+##Build the LDA model;
+library(MASS)
+
+str(train_set_2)
+
+lda.fit=lda(Target∼age_band.1...25+ age_band.2..25.to.34+age_band.3..35.to.44+age_band.4..45.to.54
+            +age_band.5..55.to.64 + age_band.6..65.to.74 +age_band.7..75.+ gender.Male+gender.Female
+            
+            + car_model.model_1 
+            + car_model.model_10+ car_model.model_11 + car_model.model_12
+            + car_model.model_13
+            + car_model.model_14
+            + car_model.model_15
+            + car_model.model_16
+            + car_model.model_17
+            + car_model.model_18
+            + car_model.model_19
+            + car_model.model_2
+            + car_model.model_3
+            + car_model.model_4
+            + car_model.model_5 
+            + car_model.model_6 
+            + car_model.model_7 +  car_model.model_8 + car_model.model_9     
+            + car_segment.Large.SUV +car_segment.LCV +car_segment.Other +car_segment.Small.Medium
+            ,data=train_set_2)
+lda.fit
+
+
+#Step 6: Use the Model to Make Predictions
+#use LDA model to make predictions on test data
+predicted <- predict(lda.fit, test_set_2)
+
+names(predicted)
+
+#view predicted class for first six observations in test set
+head(predicted$class)
+
+#view posterior probabilities for first six observations in test set
+head(predicted$posterior)
+
+#view linear discriminants for first six observations in test set
+head(predicted$x)
+
+#find accuracy of model
+mean(predicted$class==test_set_2$Target)
+
+##Step 7: Visualize the Results
+#define data to plot
+lda_plot <- cbind(train_set_2, predict(lda.fit)$x)
+
+#create plot
+ggplot(lda_plot, aes(gender.Male,gender.Female)) +
+  geom_point(aes(color = Target))

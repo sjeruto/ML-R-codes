@@ -1,0 +1,192 @@
+##Step 1
+## Uploading data set;
+repurchase_validation_DF<-read.csv("C:/Users/sharon/Desktop/MLAA/repurchase_validation.csv")
+Repurchase_training_DF<-read.csv("C:/Users/sharon/Desktop/MLAA/repurchase_training.csv")
+
+## To check for the structure of the data;
+str(Repurchase_training_DF)
+
+##Convert character variables into factor
+names <- c(3,4,5,6)
+Repurchase_training_DF[,names] <- lapply(Repurchase_training_DF[,names] , factor)
+glimpse(Repurchase_training_DF)
+
+##View as a tibble
+library(dplyr)
+RT_df <- as_tibble(Repurchase_training_DF)
+
+### summary of df
+summary(RT_df)
+
+##Removing NULL values in the data frame
+RT_df <- RT_df[!RT_df$age_band == "NULL", ] 
+RT_df <- RT_df[!RT_df$gender == "NULL", ] 
+
+##summarise again the new data without NULL values;
+summary(RT_df)
+
+##Displays missing values, more quantile information and an inline histogram for each variable!
+RT_df %>%
+  skimr::skim()
+
+###Generate a report
+install.packages("DataExplorer")
+library(DataExplorer)
+DataExplorer::create_report(RT_df)
+
+##Encoding categorical variables and assigning numerical values
+
+##Code for car_model; since it has more than two choices, we use one hot encoding
+
+dmy <- dummyVars(" ~ .", data = RT_df, fullRank = T)
+RT_df_N <- data.frame(predict(dmy, newdata = RT_df))
+
+##Remove null in the data;
+RT_df_N <- subset( RT_df_N, select = -age_band.NULL )
+RT_df_N <- subset( RT_df_N, select = -gender.NULL )
+##
+
+RT_df <- subset( RT_df, select = -age_band.NULL )
+RT_df <- subset( RT_df, select = -gender.NULL )
+
+
+
+###Using the transformed data set
+
+##Building a binomial logistic regression;
+##set.seed
+set.seed(555)
+
+##Split data into train and test;
+library(caret)
+Validation_index <- createDataPartition(RT_df_N$Target, p = .70, list = FALSE)
+train_RT <-RT_df_N[Validation_index, ]
+test_RT <- RT_df_N[-Validation_index, ]
+
+
+Validation_index_3 <- createDataPartition(RT_df$Target, p = .70, list = FALSE)
+train_RT_3 <-RT_df[Validation_index_3, ]
+test_RT_3 <- RT_df[-Validation_index_3, ]
+
+
+#fit logistic regression model
+model_glm_LR <- glm(Target~age_band.2..25.to.34+age_band.3..35.to.44+age_band.4..45.to.54
+                 +age_band.5..55.to.64 + age_band.6..65.to.74 +age_band.7..75.+ gender.Male
+                 + car_model.model_10+ car_model.model_11 + car_model.model_12
+                 + car_model.model_13
+                 + car_model.model_14
+                 + car_model.model_15
+                 + car_model.model_16
+                 + car_model.model_17
+                 + car_model.model_18
+                 + car_model.model_19
+                 + car_model.model_2
+                 + car_model.model_3
+                 + car_model.model_4
+                 + car_model.model_5 
+                 + car_model.model_6 
+                 + car_model.model_7 +  car_model.model_8 + car_model.model_9     
+                 +car_segment.LCV +car_segment.Other +car_segment.Small.Medium
+                 ,family="binomial", data=train_RT)
+model_glm_LR
+
+model_glm1 <- glm(Target~age_band+gender+car_model+car_segment, family="binomial", data=RT_df)
+model_glm1
+
+
+model_glm3 <- glm(Target~age_band+gender+car_model+car_segment, family="binomial", data=RT_df)
+model_glm3
+
+model_glm3 <- glm(Target~age_band+gender+car_model+car_segment, family="binomial", data=train_RT_3)
+model_glm3
+#disable scientific notation for model summary
+options(scipen=999)
+
+####Assessing model fit
+install.packages("pscl")
+library(pscl)
+pscl::pR2(model_glm1)["McFadden"]
+pscl::pR2(model_glm_LR)["McFadden"]
+pscl::pR2(model_glm3)["McFadden"]
+
+##checking importance for each predictor variable
+caret::varImp(model_glm1)
+caret::varImp(model_glm_LR)
+caret::varImp(model_glm3)
+
+##To predict probability
+#glm.probs=predict(model_glm1,type="response")
+#glm.probs=predict(model_glm1)
+#glm.probs [1:10]
+
+glm.probs_1=predict(model_glm_LR,type="response")
+glm.probs_1=predict(model_glm_LR)
+glm.probs_1 [1:10]
+
+glm.probs_3=predict(model_glm3,type="response")
+glm.probs_3=predict(model_glm3)
+glm.probs_3 [1:10]
+
+#To determine the 
+contrasts("Target")
+
+###predict 
+#glm.pred=rep(0, 18306)
+#glm.pred[glm.probs >.5]=1
+
+glm.pred_1=rep(0, 18306)
+glm.pred_1[glm.probs_1 >.5]=1
+
+glm.pred_3=rep(0, 18306)
+glm.pred_3[glm.probs_3 >.5]=1
+glm.pred_3
+##Confusion matrix
+table(glm.pred_1,Target)
+mean(glm.pred_1 == Target)
+
+
+##table(glm.pred_1,Target)
+#mean(glm.pred_1 == Target)
+
+#confusionMatrix(data = as.numeric(glm.pred>0.5), reference = RT_df$Target)
+
+####confusionMatrix
+
+#calculate probability of purchase for each individual in test dataset
+predicted <- predict(model_glm3, test_RT_3, type="response")
+
+# plot logistic function with the estimated probabilities using ggplot2
+ggplot(RT_df, aes(x=car_model,car_segment,, y=Target)) +
+  geom_point() +
+  labs(title = "Model Fit for Target given the predictor variables") +
+  labs(x ="Predictor variables") +
+  labs(y = "Target - Probability Estimates - 0= purchased 1 | 1=Purchased more than 1") +
+  geom_smooth(method = "glm", method.args = list(family = "binomial")) +
+  #scale_y_continuous(breaks = c(0.0, 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0), minor_breaks = NULL) +
+  #scale_x_continuous(breaks = c(0:9), minor_breaks = NULL) +
+  geom_hline(yintercept = 0.5, show.legend=TRUE, color="red") +
+  annotate("text", x = 2, y = 0.52, label = "Moment Probability to Purchase goes beyond 50%", size=3, col="red")
+
+## model diagnostics
+install.packages("InformationValue")
+library(InformationValue)
+#find optimal cutoff probability to use to maximize accuracy
+optimal <- optimalCutoff(test_RT_3$Target, predicted)[1]
+optimal
+optimal_lr <- optimalCutoff(test_RT$Target, predicted)[1]
+optimal_lr
+
+#Confusion matrix
+confusionMatrix(test_RT$Target, predicted)
+
+#calculate sensitivity
+sensitivity(test_RT$Target, predicted)
+
+#calculate specificity
+specificity(test_RT$Target, predicted)
+
+#calculate total misclassification error rate
+misClassError(test_RT$Target, predicted, threshold=optimal)
+
+#plot the ROC curve
+plotROC(test_RT$Target, predicted)
